@@ -3,8 +3,11 @@ from datetime import timedelta
 import os
 
 import dj_database_url
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent.parent / ".env")
+load_dotenv(BASE_DIR.parent / ".env", override=False)
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-me-in-production")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
@@ -70,10 +73,24 @@ DATABASES = {
     }
 }
 
-if os.getenv("DATABASE_URL"):
+database_url = os.getenv("DATABASE_URL", "").strip()
+if database_url and database_url != "your-postgresql-url":
     DATABASES["default"] = dj_database_url.parse(
-        os.environ["DATABASE_URL"], conn_max_age=600, ssl_require=not DEBUG
+        database_url, conn_max_age=600, ssl_require=True
     )
+elif os.getenv("POSTGRES_HOST"):
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "postgres"),
+        "USER": os.getenv("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+        "HOST": os.environ["POSTGRES_HOST"],
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": 0 if not DEBUG else 600,
+        "OPTIONS": {"sslmode": "require"} if not DEBUG else {},
+    }
+elif not DEBUG:
+    raise ValueError("Set DATABASE_URL or POSTGRES_HOST when DEBUG=False")
 
 AUTH_PASSWORD_VALIDATORS = []
 

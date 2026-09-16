@@ -352,6 +352,15 @@ function POSInner() {
     const bad = cart.find((i) => i.salePrice <= 0);
     if (bad) { alert(`Set a price for "${bad.name}"`); return; }
 
+    if (receiptDelivery === "email" && !receiptEmail.trim()) {
+      alert("Please enter an email address for the receipt.");
+      return;
+    }
+    if (receiptDelivery === "whatsapp" && !receiptWhatsapp.trim()) {
+      alert("Please enter a WhatsApp number.");
+      return;
+    }
+
     if (paymentMethod === "credit" && !selectedCustomerId) {
       alert("Select a customer for credit payment.");
       return;
@@ -388,46 +397,72 @@ function POSInner() {
 
       const res = await api.post("/sales/", payload);
 
-      // Define this before using it.
       const now = new Date();
-
       const s = loadSettings();
 
-      try {
-        printReceipt(
-          {
-            receiptNumber: res.data.receipt_number,
-            items: [...cart],
-            total: subtotal,
-            paymentMethod,
-            customer: selectedCustomer?.name || "",
-            businessName,
-            date: now.toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-            time: now.toLocaleTimeString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          },
-          {
+      const receiptData: ReceiptData = {
+        receiptNumber: res.data.receipt_number,
+        items: [...cart],
+        total: subtotal,
+        paymentMethod,
+        customer: selectedCustomer?.name || "",
+        businessName,
+        date: now.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        time: now.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      if (receiptDelivery === "email") {
+        try {
+          await api.post("/receipts/send_email/", {
+            receipt_number: res.data.receipt_number,
+            email: receiptEmail.trim(),
+          });
+          alert("Receipt sent via email!");
+        } catch {
+          alert("Failed to send email. Please try again or choose Print.");
+        }
+      } else if (receiptDelivery === "whatsapp") {
+        try {
+          const phone = receiptWhatsapp.replace(/[^\d]/g, "");
+          const text = generateReceiptText(receiptData, currencySymbol);
+          const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+          window.open(url, "_blank");
+          alert(
+            "Receipt opened in WhatsApp. Please review and send the message.",
+          );
+        } catch {
+          alert(
+            "Failed to open WhatsApp. Please check the number and try again.",
+          );
+        }
+      } else {
+        try {
+          printReceipt(receiptData, {
             symbol: currencySymbol,
             footer: s.receipt_footer || "Thank you for your purchase!",
             header: s.receipt_header || "",
             taxRate: s.tax_rate || 0,
             showTax: s.receipt_show_tax ?? false,
-          },
-        );
-      } catch (receiptError) {
-        console.error("Receipt printing failed:", receiptError);
+          });
+        } catch (receiptError) {
+          console.error("Receipt printing failed:", receiptError);
+        }
       }
 
       // Reset cart immediately — no waiting for modal
       setCart([]);
       setSelectedCustomerId(null);
       setShowCart(false);
+      setReceiptEmail("");
+      setReceiptWhatsapp("");
+      setReceiptDelivery("print");
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const responseData = error.response?.data;
@@ -785,6 +820,50 @@ function POSInner() {
               {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
             <ChevronDown className="absolute right-3 bottom-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
+          </div>
+
+          {/* receipt delivery */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-gray-500">
+              Receipt Delivery
+            </label>
+            <select
+              value={receiptDelivery}
+              onChange={(e) =>
+                setReceiptDelivery(
+                  e.target.value as "print" | "email" | "whatsapp",
+                )
+              }
+              className="w-full appearance-none px-3 pr-8 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#f53f64] bg-white"
+            >
+              <option value="print">Print Receipt</option>
+              <option value="email">Email Receipt</option>
+              <option value="whatsapp">WhatsApp Receipt</option>
+            </select>
+            {receiptDelivery === "email" && (
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="email"
+                  placeholder="customer@email.com"
+                  value={receiptEmail}
+                  onChange={(e) => setReceiptEmail(e.target.value)}
+                  className="block w-full rounded-md border border-gray-200 pl-10 pr-3 py-2 text-sm outline-none focus:border-[#f53f64] bg-white"
+                />
+              </div>
+            )}
+            {receiptDelivery === "whatsapp" && (
+              <div className="relative">
+                <MessageCircle className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="tel"
+                  placeholder="256771234567 (intl format)"
+                  value={receiptWhatsapp}
+                  onChange={(e) => setReceiptWhatsapp(e.target.value)}
+                  className="block w-full rounded-md border border-gray-200 pl-10 pr-3 py-2 text-sm outline-none focus:border-[#f53f64] bg-white"
+                />
+              </div>
+            )}
           </div>
 
           {/* totals */}
