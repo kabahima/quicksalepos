@@ -17,7 +17,7 @@ if not DEBUG and SECRET_KEY.startswith("django-insecure-"):
 
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,.vercel.app").split(",")
     if host.strip()
 ]
 
@@ -128,15 +128,25 @@ CORS_ALLOWED_ORIGINS = [
         "CORS_ALLOWED_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:3000",
     ).split(",")
-    if origin.strip()
+    if origin.strip() and "*" not in origin
 ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    regex.strip()
+    for regex in os.getenv(
+        "CORS_ALLOWED_ORIGIN_REGEXES",
+        r"^https://.*\.vercel\.app$",
+    ).split(",")
+    if regex.strip()
+]
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:3000",
     ).split(",")
-    if origin.strip()
+    if origin.strip() and "*" not in origin
 ]
 
 if not DEBUG:

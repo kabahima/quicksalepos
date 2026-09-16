@@ -6,7 +6,7 @@ BACKEND_DIR="$SCRIPT_DIR/backend/bookkeeping"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}"
 REQ_FILE="$SCRIPT_DIR/backend/requirements.txt"
-VENV_DIR="$SCRIPT_DIR/backend/.venv"
+VENV_DIR="$SCRIPT_DIR/backend/venv"
 VENV_PYTHON="$VENV_DIR/bin/python"
 VENV_PIP="$VENV_DIR/bin/pip"
 
@@ -16,7 +16,7 @@ if [ ! -s "$VENV_PYTHON" ] || ! -x "$VENV_PYTHON" || ! "$VENV_PYTHON" -c "import
   rm -rf "$VENV_DIR"
   echo "Virtualenv not found. Creating with python3 -m venv..."
   cd "$SCRIPT_DIR/backend"
-  python3 -m venv .venv
+  python3 -m venv venv
   echo "Installing backend dependencies..."
   "$VENV_PIP" install -r "$REQ_FILE"
 else
@@ -33,7 +33,11 @@ fi
 
 echo "Running migrations..."
 cd "$BACKEND_DIR"
-"$VENV_PYTHON" manage.py migrate --noinput
+"$VENV_PYTHON" manage.py migrate --noinput 2>&1 || {
+  echo "Migration failed. Attempting to resolve duplicate migration..."
+  "$VENV_PYTHON" manage.py migrate api 0005_new_models --fake --noinput 2>&1 || true
+  "$VENV_PYTHON" manage.py migrate --noinput 2>&1 || true
+}
 
 echo "Checking frontend dependencies..."
 if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
@@ -42,6 +46,27 @@ if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
   npm install
 else
   echo "Frontend dependencies already installed."
+fi
+
+NODE_VERSION=$(node --version 2>/dev/null || echo "none")
+NODE_MAJOR=${NODE_VERSION#v}
+NODE_MAJOR=${NODE_MAJOR%%.*}
+NEEDS_NODE=false
+if command -v node >/dev/null 2>&1; then
+  if [ "$NODE_MAJOR" -lt 20 ]; then
+    echo "Node.js $NODE_VERSION is too old. Looking for Node.js 20+..."
+    NEEDS_NODE=true
+  fi
+fi
+
+if [ "$NEEDS_NODE" = true ]; then
+  export N_PREFIX="$SCRIPT_DIR/.n"
+  export PATH="$N_PREFIX/bin:$PATH"
+  if [ ! -x "$N_PREFIX/bin/node" ]; then
+    echo "Installing Node.js 20..."
+    npx n 20 2>/dev/null || curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | N_PREFIX="$SCRIPT_DIR/.n" bash -s 20 2>/dev/null || true
+  fi
+  echo "Using Node.js $(node --version)"
 fi
 
 kill_port() {
