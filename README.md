@@ -1,4 +1,4 @@
-# Simple Bookkeeping Software
+# quick Sale pos 
 
 A lightweight bookkeeping application for small businesses, shops, pharmacies, schools, restaurants, service providers, and traders.
 
