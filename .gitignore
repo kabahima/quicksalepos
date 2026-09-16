@@ -1,0 +1,17 @@
+**/node_modules/
+**/.next/
+**/.env
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo
+
+backend/.venv/
+backend/venv/
+**/__pycache__/
+backend/bookkeeping/media/
+
+*.py[cod]
+*.sqlite3
+*.sqlite3-*
+.DS_Store
+.kilo/
