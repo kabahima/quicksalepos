@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { cacheGet, cacheSet } from "@/lib/db";
+import { useOnlineStatus } from "@/lib/offline";
 
 const UNITS = [
   { value: "pcs", label: "Pieces (pcs)" },
@@ -55,24 +57,44 @@ export default function NewProductPage() {
   const [newBrand, setNewBrand] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
   const [addingBrand, setAddingBrand] = useState(false);
+  const online = useOnlineStatus();
 
   useEffect(() => {
     const loadBusiness = async () => {
       try {
-        const res = await api.get("/businesses/");
-        const businesses = res.data.results || res.data;
-        if (Array.isArray(businesses) && businesses.length > 0) {
-          const bid = String(businesses[0].id);
-          setBusinessId(bid);
-          const [catRes, brandRes] = await Promise.all([
-            api.get("/product-categories/", { params: { business: bid } }),
-            api.get("/brands/", { params: { business: bid } }),
-          ]);
-          setCategories((catRes.data.results || catRes.data).sort((a: CategoryItem, b: CategoryItem) => a.name.localeCompare(b.name)));
-          setBrands((brandRes.data.results || brandRes.data).sort((a: BrandItem, b: BrandItem) => a.name.localeCompare(b.name)));
+        // Businesses — cache-first
+        let bizList: Array<{ id: number }> | null =
+          await cacheGet<typeof bizList>("businesses").catch(() => null);
+        if (!bizList) {
+          const res = await api.get("/businesses/");
+          bizList = res.data.results || res.data;
+          if (bizList) await cacheSet("businesses", bizList).catch(() => {});
         }
+        if (!Array.isArray(bizList) || bizList.length === 0) return;
+        const bid = String(bizList[0].id);
+        setBusinessId(bid);
+
+        // Categories — cache-first
+        let cats: CategoryItem[] | null =
+          await cacheGet<CategoryItem[]>(`product-categories:${bid}`).catch(() => null);
+        if (!cats) {
+          const catRes = await api.get("/product-categories/", { params: { business: bid } });
+          cats = catRes.data.results || catRes.data;
+          if (cats) await cacheSet(`product-categories:${bid}`, cats).catch(() => {});
+        }
+        setCategories((cats ?? []).sort((a, b) => a.name.localeCompare(b.name)));
+
+        // Brands — cache-first
+        let bnds: BrandItem[] | null =
+          await cacheGet<BrandItem[]>(`brands:${bid}`).catch(() => null);
+        if (!bnds) {
+          const brandRes = await api.get("/brands/", { params: { business: bid } });
+          bnds = brandRes.data.results || brandRes.data;
+          if (bnds) await cacheSet(`brands:${bid}`, bnds).catch(() => {});
+        }
+        setBrands((bnds ?? []).sort((a, b) => a.name.localeCompare(b.name)));
       } catch (err) {
-        console.error("Failed to load data", err);
+        console.warn("Failed to load data", err);
       }
     };
     loadBusiness();
@@ -91,27 +113,46 @@ export default function NewProductPage() {
     const added = parseFloat(stockAdded) || 0;
     const physical = physicalCount !== "" ? parseFloat(physicalCount) : opening + added;
 
+    const payload = {
+      business: parseInt(businessId),
+      date: new Date().toISOString().split("T")[0],
+      product_name: productName.trim(),
+      sku: sku.trim(),
+      barcode: barcode.trim(),
+      category: (category && category !== "__add__") ? category : "other",
+      brand: (brand && brand !== "__add__") ? brand : "generic",
+      unit,
+      cost_price: parseFloat(costPrice) || 0,
+      unit_price: parseFloat(unitPrice) || 0,
+      reorder_level: parseFloat(reorderLevel) || 0,
+      opening_stock: opening,
+      stock_added: added,
+      quantity_sold: 0,
+      physical_count: physical,
+      notes,
+    };
+
     try {
-      await api.post("/stock-counts/", {
-        business: parseInt(businessId),
-        date: new Date().toISOString().split("T")[0],
-        product_name: productName.trim(),
-        sku: sku.trim(),
-        barcode: barcode.trim(),
-        category: category || "other",
-        brand: brand || "generic",
-        unit,
-        cost_price: parseFloat(costPrice) || 0,
-        unit_price: parseFloat(unitPrice) || 0,
-        reorder_level: parseFloat(reorderLevel) || 0,
-        opening_stock: opening,
-        stock_added: added,
-        quantity_sold: 0,
-        physical_count: physical,
-        notes,
-      });
+      if (!online) {
+        const { queuePush } = await import("@/lib/db");
+        await queuePush({
+          method: "POST",
+          url: "/stock-counts/",
+          payload,
+          label: `Stock entry · ${productName.trim()}`,
+          localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+        router.push("/stock");
+        return;
+      }
+      await api.post("/stock-counts/", payload);
       router.push("/stock");
     } catch (err: unknown) {
+      const offlineErr = err as { isOfflineQueued?: boolean };
+      if (offlineErr?.isOfflineQueued) {
+        router.push("/stock");
+        return;
+      }
       const msg = (err as { response?: { data?: Record<string, string[]> } })?.response?.data;
       setError(msg ? JSON.stringify(msg) : "Failed to add product. Please try again.");
     } finally {
@@ -127,8 +168,15 @@ export default function NewProductPage() {
       setCategories((prev) => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
       setCategory(res.data.name);
       setNewCategory("");
-    } catch {
-      setError("Failed to create category.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      setError(
+        msg
+          ? typeof msg === "string"
+            ? msg
+            : JSON.stringify(msg)
+          : "Failed to create category.",
+      );
     } finally {
       setAddingCategory(false);
     }
@@ -142,8 +190,15 @@ export default function NewProductPage() {
       setBrands((prev) => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
       setBrand(res.data.name);
       setNewBrand("");
-    } catch {
-      setError("Failed to create brand.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      setError(
+        msg
+          ? typeof msg === "string"
+            ? msg
+            : JSON.stringify(msg)
+          : "Failed to create brand.",
+      );
     } finally {
       setAddingBrand(false);
     }
@@ -367,7 +422,7 @@ export default function NewProductPage() {
             disabled={loading || !businessId}
             className="flex-1 rounded-xl bg-[#f53f64] py-3 text-sm font-bold text-white hover:bg-[#e03050] disabled:opacity-40 transition"
           >
-            {loading ? "Adding..." : "Add Product"}
+            {loading ? "Adding..." : !online ? "Save offline" : "Add Product"}
           </button>
         </div>
       </form>

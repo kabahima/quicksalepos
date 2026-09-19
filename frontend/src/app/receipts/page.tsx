@@ -57,7 +57,7 @@ export default function ReceiptsPage() {
       const response = await api.get("/receipts/");
       setReceipts(response.data.results || response.data);
     } catch (error) {
-      console.error("Failed to fetch receipts", error);
+      console.warn("Failed to fetch receipts", error);
     } finally {
       setLoading(false);
     }

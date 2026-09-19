@@ -57,7 +57,7 @@ export default function LoginPage() {
       if (businesses?.length > 0) {
         const biz = businesses[0];
         const { saveSettings } = await import("@/lib/settings");
-        saveSettings({
+         saveSettings({
           currency:            biz.currency            ?? "UGX",
           currency_symbol:     biz.currency_symbol     ?? "UGX ",
           timezone:            biz.timezone            ?? "UTC",
@@ -68,14 +68,15 @@ export default function LoginPage() {
           receipt_show_tax:    biz.receipt_show_tax    ?? false,
           business_name:       biz.name                ?? "Quick Sale",
           pos_display:         "tiles",
-          theme:               "light",
+          theme:               biz.theme               ?? "light",
+          opening_balance:     biz.opening_balance     ?? 0,
         });
       }
 
       router.replace("/");
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error("Login request failed:", {
+        console.warn("Login request failed:", {
           url: error.config?.url,
           status: error.response?.status,
           data: error.response?.data,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Search, Pencil, Package } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { loadSettings } from "@/lib/settings";
 
 interface Product {
   id: number;
@@ -40,6 +41,7 @@ export default function StockPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
 
   useEffect(() => {
     const load = async () => {
@@ -81,7 +83,7 @@ export default function StockPage() {
       }
       setProducts(unique);
     } catch (error) {
-      console.error("Failed to fetch products", error);
+      console.warn("Failed to fetch products", error);
     } finally {
       setLoading(false);
     }
@@ -172,11 +174,11 @@ export default function StockPage() {
                   </Link>
                 </div>
 
-                {/* Price */}
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-bold text-[#252525]">
-                    ${Number(product.unit_price).toFixed(2)}
-                  </span>
+{/* Price */}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold text-[#252525]">
+                      {currencySymbol}{Number(product.unit_price).toFixed(2)}
+                    </span>
                   <span className="text-xs text-[#999999]">/ {unitLabel} · reorder at {product.reorder_level}</span>
                 </div>
 

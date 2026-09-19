@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Building2, Receipt, DollarSign, User,
@@ -24,7 +24,7 @@ const CURRENCIES = [
   { code: "ETB", symbol: "Br ",  label: "Ethiopian Birr (Br)" },
   { code: "ZMW", symbol: "ZK ",  label: "Zambian Kwacha (ZK)" },
   { code: "XOF", symbol: "CFA ", label: "West African CFA (CFA)" },
-  { code: "XAF", symbol: "FCFA ","label": "Central African CFA (FCFA)" },
+  { code: "XAF", symbol: "FCFA ", label: "Central African CFA (FCFA)" },
   { code: "MWK", symbol: "MK ",  label: "Malawian Kwacha (MK)" },
   { code: "BIF", symbol: "BIF ", label: "Burundian Franc (BIF)" },
 ];
@@ -80,7 +80,7 @@ const field = "mt-1 block w-full rounded-xl border border-[#eeeeee] px-3 py-2.5 
 const label = "block text-sm font-medium text-[#252525] mb-1";
 const card  = "bg-white rounded-xl border border-[#eeeeee] p-5 space-y-4";
 
-export default function SettingsPage() {
+function SettingsInner() {
   useSearchParams();
   const [tab,        setTab]        = useState<Tab>("business");
   const [settings,   setSettings]   = useState<BizSettings | null>(null);
@@ -121,10 +121,10 @@ export default function SettingsPage() {
     const load = async () => {
       try {
         const [bizRes, userRes] = await Promise.all([
-          api.get("/businesses/"),
-          api.get("/auth/me/"),
+          api.get("/businesses/").catch(() => ({ data: { results: [], } })),
+          api.get("/auth/me/").catch(() => ({ data: { first_name: "", last_name: "", email: "", members: [], } })),
         ]);
-        const businesses = bizRes.data.results || bizRes.data;
+        const businesses = bizRes.data.results || bizRes.data || [];
         if (businesses?.length > 0) setSettings(businesses[0]);
 
         const u = userRes.data;
@@ -136,7 +136,7 @@ export default function SettingsPage() {
           setUserRole(members[0].role);
         }
       } catch (e) {
-        console.error(e);
+        console.warn("Settings load error", e);
       } finally {
         setLoading(false);
       }
@@ -149,13 +149,13 @@ export default function SettingsPage() {
     const load = async () => {
       try {
         const [catRes, brandRes] = await Promise.all([
-          api.get("/product-categories/", { params: { business: settings.id } }),
-          api.get("/brands/", { params: { business: settings.id } }),
+          api.get("/product-categories/", { params: { business: settings.id } }).catch(() => ({ data: { results: [], } })),
+          api.get("/brands/", { params: { business: settings.id } }).catch(() => ({ data: { results: [], } })),
         ]);
-        setCategories((catRes.data.results || catRes.data).sort((a: CategoryItem, b: CategoryItem) => a.name.localeCompare(b.name)));
-        setBrands((brandRes.data.results || brandRes.data).sort((a: BrandItem, b: BrandItem) => a.name.localeCompare(b.name)));
+        setCategories((catRes.data.results || catRes.data || []).sort((a: CategoryItem, b: CategoryItem) => a.name.localeCompare(b.name)));
+        setBrands((brandRes.data.results || brandRes.data || []).sort((a: BrandItem, b: BrandItem) => a.name.localeCompare(b.name)));
       } catch (e) {
-        console.error(e);
+        console.warn("Catalog load error", e);
       }
     };
     load();
@@ -165,10 +165,10 @@ export default function SettingsPage() {
     if (tab !== "stations" || !settings?.id) return;
     const load = async () => {
       try {
-        const res = await api.get("/stations/", { params: { business: settings.id } });
-        setStations((res.data.results || res.data).sort((a: StationItem, b: StationItem) => a.name.localeCompare(b.name)));
+        const res = await api.get("/stations/", { params: { business: settings.id } }).catch(() => ({ data: { results: [], } }));
+        setStations((res.data.results || res.data || []).sort((a: StationItem, b: StationItem) => a.name.localeCompare(b.name)));
       } catch (e) {
-        console.error(e);
+        console.warn("Stations load error", e);
       }
     };
     load();
@@ -271,7 +271,7 @@ export default function SettingsPage() {
       await api.delete(`/product-categories/${id}/`);
       setCategories((prev) => prev.filter((c) => c.id !== id));
     } catch (e) {
-      console.error(e);
+      console.warn(e);
       alert("Failed to delete category.");
     }
   };
@@ -297,7 +297,7 @@ export default function SettingsPage() {
       await api.delete(`/brands/${id}/`);
       setBrands((prev) => prev.filter((b) => b.id !== id));
     } catch (e) {
-      console.error(e);
+      console.warn(e);
       alert("Failed to delete brand.");
     }
   };
@@ -329,7 +329,7 @@ export default function SettingsPage() {
       await api.delete(`/stations/${id}/`);
       setStations((prev) => prev.filter((s) => s.id !== id));
     } catch (e) {
-      console.error(e);
+      console.warn(e);
       alert("Failed to delete station.");
     }
   };
@@ -341,7 +341,7 @@ export default function SettingsPage() {
       const res = await api.patch(`/stations/${id}/`, { is_active: !station.is_active });
       setStations((prev) => prev.map((s) => s.id === id ? res.data : s));
     } catch (e) {
-      console.error(e);
+      console.warn(e);
     }
   };
 
@@ -786,6 +786,14 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-2 border-[#f53f64] border-t-transparent rounded-full animate-spin" /></div>}>
+      <SettingsInner />
+    </Suspense>
   );
 }
 

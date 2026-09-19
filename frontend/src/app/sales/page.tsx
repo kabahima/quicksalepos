@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { loadSettings } from "@/lib/settings";
 
 interface Sale {
   id: number;
@@ -20,18 +21,26 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
 
   useEffect(() => {
     fetchSales();
   }, []);
 
-  const fetchSales = async () => {
+  const fetchSales = async (retryCount = 0) => {
     setLoading(true);
     try {
       const response = await api.get("/sales/");
-      setSales(response.data.results || response.data);
-    } catch (error) {
-      console.error("Failed to fetch sales", error);
+      setSales(response.data.results || response.data || []);
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number }; code?: string };
+      const isNetworkError = !err?.response || err?.code === "ERR_NETWORK" || err?.code === "ERR_CLOSED";
+      if (isNetworkError && retryCount < 2) {
+        setTimeout(() => fetchSales(retryCount + 1), 1000 * (retryCount + 1));
+      } else {
+        console.warn("Failed to fetch sales", error);
+        setSales([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -128,7 +137,7 @@ export default function SalesPage() {
                               {date}
                               <span className="text-xs font-normal text-[#999999]">{dateSales.length} sale{dateSales.length === 1 ? "" : "s"}</span>
                             </span>
-                            <span className="font-semibold text-[#252525]">${dayTotal.toFixed(2)}</span>
+                            <span className="font-semibold text-[#252525]">{currencySymbol}{dayTotal.toFixed(2)}</span>
                           </button>
                         </td>
                       </tr>
@@ -138,7 +147,7 @@ export default function SalesPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-[#999999]">{formatTime(sale.created_at)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#999999]">{sale.customer || "-"}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-[#999999]">{sale.payment_method}</td>
-                          <td className="px-6 py-4 whitespace-nowrap font-semibold text-[#252525]">${parseFloat(sale.total_amount).toFixed(2)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap font-semibold text-[#252525]">{currencySymbol}{parseFloat(sale.total_amount).toFixed(2)}</td>
                         </tr>
                       ))}
                     </Fragment>

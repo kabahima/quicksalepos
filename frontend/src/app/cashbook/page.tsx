@@ -46,7 +46,7 @@ export default function CashbookPage() {
       const response = await api.get("/cashbook/");
       setEntries(response.data.results || response.data);
     } catch (error) {
-      console.error("Failed to fetch cashbook", error);
+      console.warn("Failed to fetch cashbook", error);
     } finally {
       setLoading(false);
     }

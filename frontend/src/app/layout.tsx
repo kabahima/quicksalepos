@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Quick Sale",
-  description: "Quick Sale — POS & Business Management",
+  description: "Quick Sale POS",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[#fff6f7] text-[#252525]">
+    <html lang="en">
+      <body className={`${geistSans.variable} ${geistMono.variable} text-[#252525]`}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

@@ -29,6 +29,7 @@ export default function CustomersPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
+  const [businessId, setBusinessId] = useState<number | null>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -36,7 +37,7 @@ export default function CustomersPage() {
       const response = await api.get("/customers/");
       setCustomers(response.data.results || response.data);
     } catch (error) {
-      console.error("Failed to fetch customers", error);
+      console.warn("Failed to fetch customers", error);
     } finally {
       setLoading(false);
     }
@@ -48,6 +49,12 @@ export default function CustomersPage() {
     const s = loadSettings();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (s.currency_symbol) setCurrencySymbol(s.currency_symbol);
+    api.get("/businesses/").then((res) => {
+      const businesses = res.data.results || res.data;
+      if (Array.isArray(businesses) && businesses.length > 0) {
+        setBusinessId(businesses[0].id);
+      }
+    }).catch((err) => console.warn("Failed to load business", err));
   }, []);
 
   const openPaymentForm = (customer: Customer) => {
@@ -65,7 +72,7 @@ export default function CustomersPage() {
     try {
       await api.post("/customer-payments/", {
         customer: selectedCustomer.id,
-        business: (customers[0]?.id ? parseInt(customers[0].id.toString()) : 1),
+        business: businessId,
         amount: parseFloat(paymentAmount),
         payment_method: paymentMethod,
         notes: paymentNotes,
@@ -73,7 +80,7 @@ export default function CustomersPage() {
       setShowPaymentForm(false);
       fetchCustomers();
     } catch (err) {
-      console.error("Failed to record payment", err);
+      console.warn("Failed to record payment", err);
       alert("Failed to record payment.");
     } finally {
       setSaving(false);

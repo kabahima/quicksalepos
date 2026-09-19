@@ -592,7 +592,7 @@ export default function DashboardPage() {
           setBusinessId(null);
         }
       } catch (error) {
-        console.error("Failed to load business", error);
+        console.warn("Failed to load business", error);
         setBusinessId(null);
       } finally {
         setBusinessChecked(true);
@@ -613,7 +613,7 @@ export default function DashboardPage() {
       });
       setData(response.data);
     } catch (error) {
-      console.error("Failed to fetch dashboard", error);
+      console.warn("Failed to fetch dashboard", error);
       setData(null);
     } finally {
       setLoading(false);
@@ -628,7 +628,7 @@ export default function DashboardPage() {
       });
       setSalesReport(reportRes.data);
     } catch (error) {
-      console.error("Failed to fetch reports", error);
+      console.warn("Failed to fetch reports", error);
     }
   };
 

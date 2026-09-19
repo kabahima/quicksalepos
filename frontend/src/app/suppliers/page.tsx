@@ -30,7 +30,7 @@ export default function SuppliersPage() {
       const response = await api.get("/suppliers/");
       setSuppliers(response.data.results || response.data);
     } catch (error) {
-      console.error("Failed to fetch suppliers", error);
+      console.warn("Failed to fetch suppliers", error);
     } finally {
       setLoading(false);
     }

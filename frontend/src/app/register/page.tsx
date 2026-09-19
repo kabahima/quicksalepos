@@ -222,5 +222,6 @@ function loadDefaultSettings() {
     business_name: "Quick Sale",
     pos_display: "tiles" as const,
     theme: "light" as const,
+    opening_balance: 0,
   };
 }

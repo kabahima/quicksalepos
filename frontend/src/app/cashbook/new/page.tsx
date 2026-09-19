@@ -27,7 +27,7 @@ export default function NewCashbookPage() {
           setBusinessId(String(businesses[0].id));
         }
       } catch (err) {
-        console.error("Failed to load business", err);
+        console.warn("Failed to load business", err);
       }
     };
     loadBusiness();

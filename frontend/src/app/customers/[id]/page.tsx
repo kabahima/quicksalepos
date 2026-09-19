@@ -64,6 +64,18 @@ export default function CustomerDetailPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
+  const [businessId, setBusinessId] = useState<number>(1);
+  const [editingCredit, setEditingCredit] = useState(false);
+  const [creditLimitInput, setCreditLimitInput] = useState("");
+
+  useEffect(() => {
+    api.get("/businesses/").then((res) => {
+      const businesses = res.data.results || res.data;
+      if (Array.isArray(businesses) && businesses.length > 0) {
+        setBusinessId(businesses[0].id);
+      }
+    }).catch((err) => console.warn("Failed to load business", err));
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -126,7 +138,7 @@ export default function CustomerDetailPage() {
         txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setTransactions(txs);
       } catch (err) {
-        console.error("Failed to load customer details", err);
+        console.warn("Failed to load customer details", err);
       } finally {
         setLoading(false);
       }
@@ -141,7 +153,7 @@ export default function CustomerDetailPage() {
     try {
       await api.post("/customer-payments/", {
         customer: customer.id,
-        business: 1,
+        business: businessId,
         amount: parseFloat(paymentAmount),
         payment_method: paymentMethod,
         notes: paymentNotes,
@@ -192,7 +204,7 @@ export default function CustomerDetailPage() {
       txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setTransactions(txs);
     } catch (err) {
-      console.error("Failed to record payment", err);
+      console.warn("Failed to record payment", err);
       alert("Failed to record payment.");
     } finally {
       setSaving(false);
@@ -216,8 +228,25 @@ export default function CustomerDetailPage() {
   }
 
   const outstanding = parseFloat(customer.outstanding_balance) || 0;
-  const available = parseFloat(customer.available_credit) || 0;
   const creditLimit = parseFloat(customer.credit_limit) || 0;
+  const available = Math.max(creditLimit - outstanding, 0);
+
+  const saveCreditLimit = async () => {
+    const newLimit = parseFloat(creditLimitInput) || 0;
+    setSaving(true);
+    try {
+      const res = await api.patch(`/customers/${customer.id}/`, {
+        credit_limit: newLimit,
+      });
+      setCustomer({ ...res.data });
+      setEditingCredit(false);
+      setCreditLimitInput("");
+    } catch (err) {
+      alert("Failed to update credit limit.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -233,8 +262,41 @@ export default function CustomerDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Credit Limit</p>
-          <p className="text-2xl font-bold text-gray-900">{currencySymbol}{creditLimit.toFixed(2)}</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Limit</p>
+            {!editingCredit && (
+              <button onClick={() => { setCreditLimitInput(String(creditLimit)); setEditingCredit(true); }}
+                className="text-[10px] text-blue-600 hover:text-blue-800 font-medium">
+                Edit
+              </button>
+            )}
+          </div>
+          {editingCredit ? (
+            <div className="space-y-2">
+              <div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-blue-200 bg-white">
+                <span className="flex-shrink-0 px-2 text-xs text-blue-500">{currencySymbol}</span>
+                <input
+                  type="number" min={0} step="0.01"
+                  value={creditLimitInput}
+                  onChange={(e) => setCreditLimitInput(e.target.value)}
+                  className="flex-1 py-1.5 pr-2 text-sm bg-transparent outline-none"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={saveCreditLimit} disabled={saving}
+                  className="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40">
+                  {saving ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setEditingCredit(false); setCreditLimitInput(""); }}
+                  className="flex-1 px-2 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">{currencySymbol}{creditLimit.toFixed(2)}</p>
+          )}
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Outstanding Balance</p>
@@ -242,7 +304,9 @@ export default function CustomerDetailPage() {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Available Credit</p>
-          <p className="text-2xl font-bold text-green-600">{currencySymbol}{available.toFixed(2)}</p>
+          <p className={`text-2xl font-bold ${available > 0 ? "text-green-600" : available < 0 ? "text-red-600" : "text-gray-500"}`}>
+            {currencySymbol}{available.toFixed(2)}
+          </p>
         </div>
       </div>
 

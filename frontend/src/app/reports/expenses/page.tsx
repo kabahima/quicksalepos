@@ -49,7 +49,7 @@ function ExpenseReportInner() {
       const response = await api.get("/reports/expenses/", { params });
       setData(response.data);
     } catch (error) {
-      console.error("Failed to fetch expense report", error);
+      console.warn("Failed to fetch expense report", error);
     } finally {
       setLoading(false);
     }

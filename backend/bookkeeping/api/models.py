@@ -60,6 +60,8 @@ class Business(models.Model):
     receipt_footer = models.CharField(max_length=255, blank=True,
                                       help_text="Shown at bottom of receipt e.g. 'Thank you!'")
     receipt_show_tax = models.BooleanField(default=False)
+    opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                          help_text="Opening cash balance (float) for end-of-day reconciliation")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -310,8 +312,8 @@ class StockCount(models.Model):
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="stock_counts")
     date = models.DateField()
     product_name = models.CharField(max_length=255)
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="other")
-    brand = models.CharField(max_length=50, choices=BRAND_CHOICES, default="generic")
+    category = models.CharField(max_length=100, blank=True, default="other")
+    brand = models.CharField(max_length=100, blank=True, default="generic")
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default="pcs")
     sku = models.CharField(max_length=50, blank=True)
     barcode = models.CharField(max_length=100, blank=True)

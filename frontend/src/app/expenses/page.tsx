@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { loadSettings } from "@/lib/settings";
 
 interface Expense {
   id: number;
@@ -18,6 +19,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
 
   useEffect(() => {
     fetchExpenses();
@@ -29,7 +31,7 @@ export default function ExpensesPage() {
       const response = await api.get("/expenses/");
       setExpenses(response.data.results || response.data);
     } catch (error) {
-      console.error("Failed to fetch expenses", error);
+      console.warn("Failed to fetch expenses", error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ export default function ExpensesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{expense.date}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{expense.category}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{expense.description}</td>
-                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900">${parseFloat(expense.amount).toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900">{currencySymbol}{parseFloat(expense.amount).toFixed(2)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">{expense.payment_method}</td>
                   </tr>
                 ))

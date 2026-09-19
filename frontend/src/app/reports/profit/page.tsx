@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
+import { loadSettings } from "@/lib/settings";
 
 interface ProfitReportData {
   total_sales: number;
@@ -18,6 +19,7 @@ function ProfitReportInner() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [data, setData] = useState<ProfitReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
 
   useEffect(() => {
     const loadBusiness = async () => {
@@ -51,7 +53,7 @@ function ProfitReportInner() {
       const response = await api.get("/reports/profit/", { params });
       setData(response.data);
     } catch (error) {
-      console.error("Failed to fetch profit report", error);
+      console.warn("Failed to fetch profit report", error);
     } finally {
       setLoading(false);
     }
@@ -63,22 +65,20 @@ function ProfitReportInner() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-900">Profit Report</h1>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded-lg bg-white p-6 shadow">
           <p className="text-sm font-medium text-gray-600">Total Sales</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">${data.total_sales.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{currencySymbol}{data.total_sales.toFixed(2)}</p>
         </div>
         <div className="rounded-lg bg-white p-6 shadow">
           <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">${data.total_expenses.toFixed(2)}</p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{currencySymbol}{data.total_expenses.toFixed(2)}</p>
         </div>
         <div className="rounded-lg bg-white p-6 shadow">
           <p className="text-sm font-medium text-gray-600">Profit</p>
           <p className={`mt-2 text-2xl font-bold ${data.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ${data.profit.toFixed(2)}
+            {currencySymbol}{data.profit.toFixed(2)}
           </p>
         </div>
-      </div>
       <div className="rounded-lg bg-white p-6 shadow">
         <h2 className="mb-4 text-lg font-semibold">Daily Profit</h2>
         <div className="overflow-x-auto">
@@ -97,10 +97,10 @@ function ProfitReportInner() {
               ) : data.daily_profit.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{row.date}</td>
-                  <td className="px-4 py-3 text-gray-700">${row.sales.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-gray-700">${row.expenses.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-700">{currencySymbol}{row.sales.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-700">{currencySymbol}{row.expenses.toFixed(2)}</td>
                   <td className={`px-4 py-3 font-semibold ${row.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${row.profit.toFixed(2)}
+                    {currencySymbol}{row.profit.toFixed(2)}
                   </td>
                 </tr>
               ))}

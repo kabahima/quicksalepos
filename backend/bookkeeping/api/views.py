@@ -1,7 +1,9 @@
+from django.db import IntegrityError
 from rest_framework import generics, views, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Sum, Count, Q
+from django.db.models.functions import TruncWeek
 from django.core.mail import send_mail
 from django.conf import settings as dj_settings
 from django_filters.rest_framework import DjangoFilterBackend
@@ -425,7 +427,15 @@ class ProductCategoryListCreateView(generics.ListCreateAPIView):
             biz_ids = get_accessible_businesses(self.request.user)
             if biz_ids:
                 business_id = biz_ids[0]
-        serializer.save(business_id=business_id)
+        try:
+            serializer.save(business_id=business_id)
+        except IntegrityError:
+            name = serializer.validated_data.get("name", "")
+            existing = ProductCategory.objects.filter(
+                name=name, business_id=business_id
+            ).first()
+            if existing:
+                serializer.instance = existing
 
 
 class ProductCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -455,7 +465,15 @@ class BrandListCreateView(generics.ListCreateAPIView):
             biz_ids = get_accessible_businesses(self.request.user)
             if biz_ids:
                 business_id = biz_ids[0]
-        serializer.save(business_id=business_id)
+        try:
+            serializer.save(business_id=business_id)
+        except IntegrityError:
+            name = serializer.validated_data.get("name", "")
+            existing = Brand.objects.filter(
+                name=name, business_id=business_id
+            ).first()
+            if existing:
+                serializer.instance = existing
 
 
 class BrandDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -831,7 +849,7 @@ class DashboardView(views.APIView):
                 date=row["latest"],
             ).first()
             if entry:
-                stock_value += float(entry.physical_count)
+                stock_value += float(entry.physical_count) * float(entry.unit_price)
 
         # Recent transactions
         recent_transactions = []
@@ -890,7 +908,7 @@ class SalesReportView(views.APIView):
 
         daily = sales.values("date").annotate(total=Sum("total_amount"), count=Count("id")).order_by("date")
         weekly = (
-            sales.extra(select={"week": "strftime('%%W', date)"})
+            sales.annotate(week=TruncWeek("date"))
             .values("week")
             .annotate(total=Sum("total_amount"), count=Count("id"))
             .order_by("week")

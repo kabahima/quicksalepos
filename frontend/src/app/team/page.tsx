@@ -93,7 +93,7 @@ export default function TeamPage() {
           setStations(loadedStations);
         }
       } catch {
-        console.error("Failed to load data");
+        console.warn("Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -174,7 +174,7 @@ export default function TeamPage() {
       await api.patch(`/members/${memberId}/`, { stations: next });
       setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, stations: next } : m));
     } catch (err) {
-      console.error("Failed to update stations", err);
+      console.warn("Failed to update stations", err);
     }
   };
 

@@ -49,7 +49,7 @@ function SalesReportInner() {
       const response = await api.get("/reports/sales/", { params });
       setData(response.data);
     } catch (error) {
-      console.error("Failed to fetch sales report", error);
+      console.warn("Failed to fetch sales report", error);
     } finally {
       setLoading(false);
     }

@@ -15,6 +15,7 @@ export interface AppSettings {
   business_name: string;
   pos_display: "tiles" | "list" | "gallery";
   theme: "light" | "dark" | "ocean" | "forest";
+  opening_balance: number;
 }
 
 const KEY = "qs_settings";
@@ -31,6 +32,7 @@ const DEFAULTS: AppSettings = {
   business_name: "Quick Sale",
   pos_display: "tiles",
   theme: "light",
+  opening_balance: 0,
 };
 
 export function loadSettings(): AppSettings {

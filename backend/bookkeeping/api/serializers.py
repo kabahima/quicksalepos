@@ -205,12 +205,19 @@ class BrandSerializer(serializers.ModelSerializer):
 
 class StockCountSerializer(serializers.ModelSerializer):
     unit_display = serializers.CharField(source="get_unit_display", read_only=True)
-    category_display = serializers.CharField(source="get_category_display", read_only=True)
-    brand_display = serializers.CharField(source="get_brand_display", read_only=True)
+    category_display = serializers.CharField(source="category", read_only=True)
+    brand_display = serializers.CharField(source="brand", read_only=True)
 
     class Meta:
         model = StockCount
-        fields = ["id", "date", "product_name", "category", "category_display", "brand", "brand_display", "unit", "unit_display", "unit_price", "opening_stock", "stock_added", "quantity_sold", "expected_stock", "physical_count", "difference", "notes"]
+        fields = [
+            "id", "business", "date", "product_name",
+            "sku", "barcode", "cost_price", "reorder_level",
+            "category", "category_display", "brand", "brand_display",
+            "unit", "unit_display", "unit_price",
+            "opening_stock", "stock_added", "quantity_sold",
+            "expected_stock", "physical_count", "difference", "notes",
+        ]
         read_only_fields = ["business", "expected_stock", "difference", "created_by"]
 
 

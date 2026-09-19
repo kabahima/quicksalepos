@@ -6,7 +6,7 @@ import api from "@/lib/api";
 
 interface StockReportData {
   by_date: Array<{ date: string; total_difference: number; count: number }>;
-  by_product: Array<{ product_name: string; total_difference: number; avg_opening: number }>;
+  by_product: Array<{ product_name: string; total_difference: number; total_sold: number }>;
 }
 
 function StockReportInner() {
@@ -49,7 +49,7 @@ function StockReportInner() {
       const response = await api.get("/reports/stock/", { params });
       setData(response.data);
     } catch (error) {
-      console.error("Failed to fetch stock report", error);
+      console.warn("Failed to fetch stock report", error);
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ function StockReportInner() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Opening</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Sold</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Difference</th>
               </tr>
             </thead>
@@ -105,7 +105,7 @@ function StockReportInner() {
               ) : data.by_product.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{row.product_name}</td>
-                  <td className="px-4 py-3 text-gray-700">{Number(row.avg_opening).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-700">{Number(row.total_sold).toFixed(2)}</td>
                   <td className={`px-4 py-3 font-semibold ${row.total_difference >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {row.total_difference}
                   </td>

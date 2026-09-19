@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { cacheGet, cacheSet } from "@/lib/db";
+import { useOnlineStatus } from "@/lib/offline";
+import { loadSettings } from "@/lib/settings";
 
 interface SaleItem {
   item_name: string;
@@ -18,23 +21,29 @@ function NewSaleInner() {
   const prefillProduct = searchParams.get("product") || "";
 
   const [businessId, setBusinessId] = useState("");
-  const [customer, setCustomer] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SaleItem[]>([{ item_name: prefillProduct, quantity: 1, unit_price: 0 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const online = useOnlineStatus();
+  const [currencySymbol, setCurrencySymbol] = useState(() => loadSettings().currency_symbol || "UGX ");
 
   useEffect(() => {
     const loadBusiness = async () => {
       try {
-        const res = await api.get("/businesses/");
-        const businesses = res.data.results || res.data;
-        if (Array.isArray(businesses) && businesses.length > 0) {
-          setBusinessId(String(businesses[0].id));
+        let bizList: Array<{ id: number }> | null =
+          await cacheGet<typeof bizList>("businesses").catch(() => null);
+        if (!bizList) {
+          const res = await api.get("/businesses/");
+          bizList = res.data.results || res.data;
+          if (bizList) await cacheSet("businesses", bizList).catch(() => {});
+        }
+        if (Array.isArray(bizList) && bizList.length > 0) {
+          setBusinessId(String(bizList[0].id));
         }
       } catch (err) {
-        console.error("Failed to load business", err);
+        console.warn("Failed to load business", err);
       }
     };
     loadBusiness();
@@ -70,10 +79,9 @@ function NewSaleInner() {
     const totalAmount = filteredItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
 
     try {
-      await api.post("/sales/", {
+      const payload = {
         business: parseInt(businessId),
         date: new Date().toISOString().split("T")[0],
-        customer: customer || null,
         payment_method: paymentMethod,
         total_amount: totalAmount,
         notes,
@@ -83,9 +91,26 @@ function NewSaleInner() {
           unit_price: item.unit_price,
           total: item.quantity * item.unit_price,
         })),
-      });
+      };
+
+      if (!online) {
+        const { queuePush } = await import("@/lib/db");
+        await queuePush({
+          method: "POST",
+          url: "/sales/",
+          payload,
+          label: `Sale · ${filteredItems.length} item${filteredItems.length !== 1 ? "s" : ""}`,
+          localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+        router.push("/receipts");
+        return;
+      }
+
+      await api.post("/sales/", payload);
       router.push("/receipts");
     } catch (err) {
+      const offlineErr = err as { isOfflineQueued?: boolean };
+      if (offlineErr?.isOfflineQueued) { router.push("/receipts"); return; }
       setError("Failed to create sale");
     } finally {
       setLoading(false);
@@ -109,15 +134,6 @@ function NewSaleInner() {
         <div className="rounded-lg bg-white p-6 shadow border border-[#eeeeee]">
           <h2 className="mb-4 text-lg font-semibold text-[#252525]">Sale Information</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-[#252525]">Customer (optional)</label>
-              <input
-                type="text"
-                value={customer}
-                onChange={(e) => setCustomer(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-[#eeeeee] px-3 py-2 focus:border-[#f53f64] focus:outline-none focus:ring-[#f53f64]"
-              />
-            </div>
             <div>
               <label className="block text-sm font-medium text-[#252525]">Payment Method</label>
               <select
@@ -189,7 +205,7 @@ function NewSaleInner() {
         <div className="rounded-lg bg-white p-6 shadow border border-[#eeeeee]">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[#252525]">Total</h2>
-            <p className="text-2xl font-bold text-[#252525]">${totalAmount.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-[#252525]">{currencySymbol}{totalAmount.toFixed(2)}</p>
           </div>
         </div>
 
@@ -199,7 +215,7 @@ function NewSaleInner() {
             disabled={loading || !businessId}
             className="rounded-md bg-[#f53f64] px-6 py-2 text-white hover:bg-[#e03050] disabled:opacity-50 transition"
           >
-            {loading ? "Saving..." : "Create Sale"}
+            {loading ? "Saving..." : !online ? "Save offline" : "Create Sale"}
           </button>
         </div>
       </form>

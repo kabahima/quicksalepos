@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { cacheGet, cacheSet } from "@/lib/db";
+import { useOnlineStatus } from "@/lib/offline";
 
 interface ExpenseCategory {
   id: number;
@@ -23,22 +25,34 @@ export default function NewExpensePage() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const online = useOnlineStatus();
 
   useEffect(() => {
     const loadBusinessAndCategories = async () => {
       try {
-        const [bizRes, catRes] = await Promise.all([
-          api.get("/businesses/"),
-          api.get("/expense-categories/"),
-        ]);
-        const businesses = bizRes.data.results || bizRes.data;
-        if (Array.isArray(businesses) && businesses.length > 0) {
-          setBusinessId(String(businesses[0].id));
+        // Businesses — cache-first
+        let bizList: Array<{ id: number }> | null =
+          await cacheGet<typeof bizList>("businesses").catch(() => null);
+        if (!bizList) {
+          const bizRes = await api.get("/businesses/");
+          bizList = bizRes.data.results || bizRes.data;
+          if (bizList) await cacheSet("businesses", bizList).catch(() => {});
         }
-        const cats = catRes.data.results || catRes.data;
+        if (Array.isArray(bizList) && bizList.length > 0) {
+          setBusinessId(String(bizList[0].id));
+        }
+
+        // Expense categories — cache-first
+        let cats: ExpenseCategory[] | null =
+          await cacheGet<ExpenseCategory[]>("expense-categories").catch(() => null);
+        if (!cats) {
+          const catRes = await api.get("/expense-categories/");
+          cats = catRes.data.results || catRes.data;
+          if (cats) await cacheSet("expense-categories", cats).catch(() => {});
+        }
         setCategories(Array.isArray(cats) ? cats : []);
       } catch (err) {
-        console.error("Failed to load initial data", err);
+        console.warn("Failed to load initial data", err);
       }
     };
     loadBusinessAndCategories();
@@ -50,7 +64,7 @@ export default function NewExpensePage() {
     setError("");
 
     try {
-      await api.post("/expenses/", {
+      const payload = {
         business: parseInt(businessId),
         date,
         category: categoryId ? parseInt(categoryId) : null,
@@ -58,9 +72,26 @@ export default function NewExpensePage() {
         amount: parseFloat(amount),
         payment_method: paymentMethod,
         notes,
-      });
+      };
+
+      if (!online) {
+        const { queuePush } = await import("@/lib/db");
+        await queuePush({
+          method: "POST",
+          url: "/expenses/",
+          payload,
+          label: `Expense · ${description || "untitled"}`,
+          localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+        router.push("/expenses");
+        return;
+      }
+
+      await api.post("/expenses/", payload);
       router.push("/expenses");
     } catch (err) {
+      const offlineErr = err as { isOfflineQueued?: boolean };
+      if (offlineErr?.isOfflineQueued) { router.push("/expenses"); return; }
       setError("Failed to create expense");
     } finally {
       setLoading(false);
@@ -155,7 +186,7 @@ export default function NewExpensePage() {
             disabled={loading}
             className="rounded-md bg-indigo-600 px-6 py-2 text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loading ? "Saving..." : "Create Expense"}
+            {loading ? "Saving..." : !online ? "Save offline" : "Create Expense"}
           </button>
         </div>
       </form>
